@@ -135,9 +135,6 @@ angular.module('angularOauth', ['ngCookies'])
 					expires: expires
 				});
 			};
-			var clearToken = function() {
-				oauthConfig.removeCookieData();
-			};
 
 			var getAccessTokenFromCode = function(code, state) {
 				var deferred = $q.defer();
@@ -198,7 +195,7 @@ angular.module('angularOauth', ['ngCookies'])
 							if (code) {
 								//Just returned from getting token.
 								getAccessTokenFromCode(code, state).then(function() {
-									deferred.resolve();
+									$window.location.href = $window.location.origin + $window.location.pathname;
 								}, function(reason) {
 									deferred.reject(reason);
 								});
@@ -242,7 +239,7 @@ angular.module('angularOauth', ['ngCookies'])
 					return deferred.promise;
 				},
 				unAuthorize: function() {
-					clearToken();
+					oauthConfig.removeCookieData();
 				},
 				reAuthorize: function(params) {
 					this.unAuthorize();
