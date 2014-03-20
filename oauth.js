@@ -1,5 +1,5 @@
 
-angular.module('angularOauth', [])
+angular.module('angularOauth', ['ngCookies'])
 	.config(['$provide', '$httpProvider', '$routeProvider', function($provide, $httpProvider, $routeProvider) {
 		//Intercept any $http calls to include OAuth authorization
 		$provide.factory('httpOauthIntercept', ['$q', 'oauthConfig', function($q, oauthConfig) {
@@ -14,7 +14,7 @@ angular.module('angularOauth', [])
 						}
 						config.headers['Authorization'] = oauthConfig.getAuthorizationHeader();
 					}
-
+					
 					return config;
 				},
 				requestError: function(rejection) {
@@ -30,14 +30,14 @@ angular.module('angularOauth', [])
 		}]);
 		$httpProvider.interceptors.push('httpOauthIntercept');
 	}])
-	.provider('oauthConfig', [function() {
+	.provider('oauthConfig', function() {
 		var options = {
 			authUrl: '_',
 			clientId: '_',
 			clientSecret: '_',
 			verifyUrl: '_',
 
-			localStorageKey: 'oauth',
+			cookieKey: 'oauth',
 			method: 'redirect'
 		};
 		
@@ -45,7 +45,7 @@ angular.module('angularOauth', [])
 			options = angular.extend(options, customOptions);
 		};
 
-		this.$get = function() {
+		this.$get = ['$cookieStore', function($cookieStore) {
 			return {
 				get: function(key) {
 					return options[key];
@@ -56,19 +56,37 @@ angular.module('angularOauth', [])
 				getAll: function() {
 					return options;
 				},
-
+				
+				getCookieData: function() {
+					return $cookieStore.get(options.cookieKey);
+				},
+				setCookieData: function(data) {
+					$cookieStore.put(options.cookieKey, data);
+				},
+				removeCookieData: function() {
+					$cookieStore.remove(options.cookieKey);
+				},
+				
 				getAccessToken: function() {
-					return window.localStorage[options.localStorageKey+'.token'];
+					var cookie = this.getCookieData();
+					if (typeof cookie !== 'undefined') {
+						return cookie['token'];
+					}
+					return undefined;
 				},
 				getAuthorizationHeader: function() {
-					return window.localStorage[options.localStorageKey+'.token_type']+' '+window.localStorage[options.localStorageKey+'.token'];
+					var cookie = this.getCookieData();
+					if (typeof cookie !== 'undefined') {
+						return cookie['token_type']+' '+cookie['token'];
+					}
+					return undefined;
 				},
 				isAuthorized: function() {
-					return typeof this.getAccessToken() !== 'undefined';
+					return typeof this.getCookieData() !== 'undefined';
 				}
 			};
-		}
-	}])
+		}];
+	})
 	.provider('oauth', function() {
 		this.$get = ['$q', '$window', '$location', '$http', '$route', 'oauthConfig', function($q, $window, $location, $http, $route, oauthConfig) {
 			//Check required options
@@ -95,19 +113,16 @@ angular.module('angularOauth', [])
 				*/
 				var expires = new Date();
 				expires.setUTCSeconds(expires.getUTCSeconds()+parseInt(data['expires_in']));
-
-				window.localStorage[oauthConfig.get('localStorageKey')+'.token'] = data['access_token'];
-				window.localStorage[oauthConfig.get('localStorageKey')+'.token_type'] = data['token_type'];
-				window.localStorage[oauthConfig.get('localStorageKey')+'.refresh_token'] = data['refresh_token'];
-				window.localStorage[oauthConfig.get('localStorageKey')+'.scope'] = data['scope'];
-				window.localStorage[oauthConfig.get('localStorageKey')+'.expires'] = expires;
+				
+				oauthConfig.setCookieData({
+					token: data['access_token'],
+					token_type: data['token_type'],
+					scope: data['scope'],
+					expires: expires
+				});
 			};
 			var clearToken = function() {
-				window.localStorage[oauthConfig.get('localStorageKey')+'.token'] = '';
-				window.localStorage[oauthConfig.get('localStorageKey')+'.token_type'] = '';
-				window.localStorage[oauthConfig.get('localStorageKey')+'.refresh_token'] = '';
-				window.localStorage[oauthConfig.get('localStorageKey')+'.scope'] = '';
-				window.localStorage[oauthConfig.get('localStorageKey')+'.expires'] = '';
+				oauthConfig.removeCookieData();
 			};
 
 			var getAccessTokenFromCode = function(code, state) {
@@ -140,7 +155,7 @@ angular.module('angularOauth', [])
 				var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
 					results = regex.exec(location.search);
 				return results == null ? null : decodeURIComponent(results[1].replace(/\+/g, " "));
-			}
+			};
 
 			return {
 				getAccessToken: function() {
