@@ -66,6 +66,20 @@ angular.module('angularOauth', ['ngCookies'])
 				removeCookieData: function() {
 					$cookieStore.remove(options.cookieKey);
 				},
+				checkCookieExpiry: function() {
+					var cookie = this.getCookieData();
+					if (typeof cookie !== 'undefined') {
+						var expiry = new Date(cookie['expires']);
+						var now = new Date();
+						if (expiry < now) {
+							this.removeCookieData();
+						} else {
+							return true;
+						}
+					}
+					
+					return false;
+				},
 				
 				getAccessToken: function() {
 					var cookie = this.getCookieData();
@@ -165,11 +179,11 @@ angular.module('angularOauth', ['ngCookies'])
 					return oauthConfig.getAuthorizationHeader();
 				},
 				isAuthorized: function() {
-					return oauthConfig.isAuthorized();
+					return oauthConfig.checkCookieExpiry();
 				},
 				authorize: function(params) {
 					var deferred = $q.defer();
-
+					
 					if (this.isAuthorized()) {
 						//Already Authorized
 						setTimeout(function() {
